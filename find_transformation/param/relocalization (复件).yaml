@@ -1,0 +1,11 @@
+relocalization:
+    surface_icp_corr_threshold: 0.6
+    surface_icp_max_iternum: 50
+    surface_icp_fit_threshold: 0.05 
+    surface_pass_filter_threshold: 100
+    corner_icp_corr_threshold: 0.6
+    corner_icp_max_iternum: 50
+    corner_icp_fit_threshold: 0.05 
+    corner_pass_filter_threshold: 35
+    key_frame_num: 48
+    accumulate_num: 1

@@ -1,0 +1,15 @@
+<launch>
+    <rosparam command="load" file="$(find find_transformation)/param/map_create.yaml" />
+    <param name="corner_frame_path" value="$(find find_transformation)/playground/corner_aligned/" />
+    <param name="surf_frame_path" value="$(find find_transformation)/playground/surf_aligned/" />
+
+    <param name="surface_descriptors_path" value="$(find find_transformation)/huiyuan/vocab/huiyuan2_surface_descriptors.h5" />
+    <param name="surface_vocab_path" value="$(find find_transformation)/huiyuan/vocab/huiyuan2_surface_vocabulary.yml.gz" />
+    <param name="corner_map_saved_path" value="$(find find_transformation)/huiyuan/map/huiyuan2_corner_map.pcd" />
+    <param name="surface_map_saved_path" value="$(find find_transformation)/huiyuan/map/huiyuan2_surface_map.pcd" />
+    <param name="transformation_path" value="$(find find_transformation)/huiyuan/huiyuan2_transformation.txt" />
+    <param name="transformation_saved_path" value="$(find find_transformation)/huiyuan/vocab/huiyuan2_transform_data.h5" />
+    <param name="clusters_saved_path" value="$(find find_transformation)/huiyuan/clusters/" />
+
+    <node pkg="find_transformation" type="map_creator" name="map_creator" output="screen" />
+</launch>
