@@ -48,7 +48,8 @@ using namespace std;
 struct odometry_pair
 {
   double score;
-  size_t index;
+  int index;
+  int points_num;
 };
 class Local_map
 {
@@ -135,14 +136,62 @@ class Local_map
       printf ("t = < %6.3f, %6.3f, %6.3f >\n\n", matrix (0, 3), matrix (1, 3), matrix (2, 3));
     }
 
+    int initial_variation(Eigen::Matrix4f & initial,int & iter_num,float range)
+    {
+      switch (iter_num) {
+      case 0:
+          initial(0,3)=-range;
+          initial(1,3)=0;
+          iter_num++;
+          break;
+      case 1:
+          initial(0,3)=-range;
+          initial(1,3)=range;
+          iter_num++;
+          break;
+      case 2:
+          initial(0,3)=0;
+          initial(1,3)=range;
+          iter_num++;
+          break;
+      case 3:
+          initial(0,3)=range;
+          initial(1,3)=range;
+          iter_num++;
+          break;
+      case 4:
+          initial(0,3)=range;
+          initial(1,3)=0;
+          iter_num++;
+          break;
+      case 5:
+          initial(0,3)=range;
+          initial(1,3)=-range;
+          iter_num++;
+          break;
+      case 6:
+          initial(0,3)=0;
+          initial(1,3)=-range;
+          iter_num++;
+          break;
+      case 7:
+          initial(0,3)=-range;
+          initial(1,3)=-range;
+          iter_num++;
+          break;
+      default:
+          break;
+      }
+      return 0;
+    }
     int cornericp_findtrans(pcl::PointCloud< PointType >::Ptr in_laser_cloud_corner_from_map,
                       pcl::search::KdTree<PointType>::Ptr   kdtree_corner_from_map,
                       pcl::PointCloud< PointType >::Ptr laserCloudCornerStack
                       )
     {
-//      cerr<<"corner frame index: "<<corner_frame_index<<endl;
-//      vector<double> fitness_score;
       vector<Eigen::Matrix4d,Eigen::aligned_allocator<Eigen::Matrix4d>> trans_matrix;
+      corner_acc_frame->clear();
+      int iter_num=0;
       if(corner_frame_index>100)
       {
         *corner_acc_frame=*corner_acc_frame+*laserCloudCornerStack;
@@ -157,16 +206,13 @@ class Local_map
           corner_sample.filter (*corner_acc_frame);
 //          cerr<<"corner_acc_frame size after down sampled is: "<<corner_acc_frame->size()<<endl;
 
-          cerr<<"before corner radius filter: "<<corner_acc_frame->size();
-          corner_r_filter.setInputCloud(corner_acc_frame);
-          corner_r_filter.filter(*corner_acc_frame);
-          cerr<<" after corner radius filter: "<<corner_acc_frame->size()<<endl;
-
+//          cerr<<"before corner radius filter: "<<corner_acc_frame->size();
+//          corner_r_filter.setInputCloud(corner_acc_frame);
+//          corner_r_filter.filter(*corner_acc_frame);
+//          cerr<<" after corner radius filter: "<<corner_acc_frame->size()<<endl;
           pcl::PointCloud<PointType>::Ptr corner_trans (new pcl::PointCloud<PointType>);
           pcl::transformPointCloud (*corner_acc_frame, *corner_trans, corner_t_hist);
-          corner_acc_frame->clear();
 //          cerr<<"corner_acc_frame size after clear is: "<<corner_acc_frame->size()<<endl;
-
           corner_icp.setInputSource(corner_trans);
           Eigen::Matrix4f init_icp=Eigen::Matrix4f::Identity ();
           while(cornericp_continue)
@@ -180,55 +226,12 @@ class Local_map
                   trans_matrix.push_back(trans_test);
                   if((corner_icp.getFitnessScore ()>0.05)&&(iter_num<8))
                   {
-                      switch (iter_num) {
-                      case 0:
-                          init_icp(0,3)=-0.3;
-                          init_icp(1,3)=0;
-                          iter_num++;
-                          break;
-                      case 1:
-                          init_icp(0,3)=-0.3;
-                          init_icp(1,3)=0.3;
-                          iter_num++;
-                          break;
-                      case 2:
-                          init_icp(0,3)=0;
-                          init_icp(1,3)=0.3;
-                          iter_num++;
-                          break;
-                      case 3:
-                          init_icp(0,3)=0.3;
-                          init_icp(1,3)=0.3;
-                          iter_num++;
-                          break;
-                      case 4:
-                          init_icp(0,3)=0.3;
-                          init_icp(1,3)=0;
-                          iter_num++;
-                          break;
-                      case 5:
-                          init_icp(0,3)=0.3;
-                          init_icp(1,3)=-0.3;
-                          iter_num++;
-                          break;
-                      case 6:
-                          init_icp(0,3)=0;
-                          init_icp(1,3)=-0.3;
-                          iter_num++;
-                          break;
-                      case 7:
-                          init_icp(0,3)=-0.3;
-                          init_icp(1,3)=-0.3;
-                          iter_num++;
-                          break;
-                      default:
-                          break;
-                      }
-                      cornericp_continue=true;
+                    initial_variation(init_icp,iter_num,0.3);
+                    cornericp_continue=true;
                   }
                   else
                   {
-                      cornericp_continue=false;
+                    cornericp_continue=false;
                   }
               }
           }
@@ -236,11 +239,8 @@ class Local_map
           {
             cerr<<"corner icp iter num at "<<corner_frame_index<<" is "<<iter_num<<"  best score is: "<<*min_element(begin(corner_fitness_score),end(corner_fitness_score))<<"  worest score is: "<<*max_element(begin(corner_fitness_score),end(corner_fitness_score))<<endl;
           }
-          iter_num=0;
           Eigen::Matrix4d corner_t_curr = trans_matrix[distance(begin(corner_fitness_score),min_element(begin(corner_fitness_score),end(corner_fitness_score)))];
           cornericp_continue=true;
-//          fitness_score.clear();
-//          trans_matrix.clear();
           corner_t_hist=corner_t_curr*corner_t_hist;
 
           //publish odometry
@@ -267,21 +267,20 @@ class Local_map
             //std::cout << "final corner icp score at "<<corner_frame_index<<" is "<<*min_element(begin(corner_fitness_score),end(corner_fitness_score))<<endl;
             //std::cout<<"the transformation is: "<<qua.x()<<" "<<qua.y()<<" "<<qua.z()<<" "<<qua.w()<<" "<<corner_t_hist(0,3)<<" "<<corner_t_hist(1,3)<<" "<<corner_t_hist(2,3)<<endl;
           }
-
         }
       }
-        corner_frame_index++;
-        if(corner_frame_index>(100+accumulate_num))
-        {
-          corner_odometry_pair.index=corner_frame_index;
-          corner_odometry_pair.score=*min_element(begin(corner_fitness_score),end(corner_fitness_score));
-        }
-        while(corner_frame_index>surface_frame_index)
-        {
-          std::this_thread::sleep_for(std::chrono::milliseconds(1));//sleep for 1ms
-        }
-//        cerr<<"corner frame "<<corner_frame_index<<"complete"<<endl;
-        return 0;
+      corner_frame_index++;
+      if(corner_frame_index>(100+accumulate_num))
+      {
+        corner_odometry_pair.index=corner_frame_index;
+        corner_odometry_pair.score=*min_element(begin(corner_fitness_score),end(corner_fitness_score));
+        corner_odometry_pair.points_num=corner_acc_frame->size();
+      }
+      while(corner_frame_index>surface_frame_index)
+      {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));//sleep for 1ms
+      }
+      return 0;
     }
     int surfaceicp_findtrans(pcl::PointCloud< PointType >::Ptr in_laser_cloud_surface_from_map,
                       pcl::search::KdTree<PointType>::Ptr   kdtree_surface_from_map,
@@ -291,6 +290,9 @@ class Local_map
 //      cerr<<"surface frame index: "<<surface_frame_index<<endl;
 //      vector<double> fitness_score;
       vector<Eigen::Matrix4d,Eigen::aligned_allocator<Eigen::Matrix4d>> trans_matrix;
+      int iter_num=0;
+      surface_acc_frame->clear();
+
       if (surface_frame_index<100)
       {
         *current_surface_local_map=*current_surface_local_map+*laserClouSurfaceStack;
@@ -304,11 +306,10 @@ class Local_map
         for(size_t i=0;i<initial_trans_candidates.size();i++)
         {
           pcl::PointCloud<PointType>::Ptr surface_trans (new pcl::PointCloud<PointType>);
-          surface_pass.setInputCloud(current_surface_local_map);
-          surface_pass.filter(*current_surface_local_map);
-          cerr<<"local map size is: "<<current_surface_local_map->size()<<endl;
+          surface_pass.setInputCloud(laserClouSurfaceStack);
+          surface_pass.filter(*laserClouSurfaceStack);
 
-          pcl::transformPointCloud (*current_surface_local_map, *surface_trans, initial_trans_candidates[i]);
+          pcl::transformPointCloud (*laserClouSurfaceStack, *surface_trans, initial_trans_candidates[i]);
 //          pcl::transformPointCloud (*laserClouSurfaceStack, *surface_trans, initial_trans_candidates[i]);
           surface_icp.setInputSource(surface_trans);
           surface_icp.align(*surface_trans);
@@ -335,24 +336,21 @@ class Local_map
         {
           surface_fitness_score.clear();
           trans_matrix.clear();
-          cerr<<"before downsample is "<<surface_acc_frame->size();
+//          cerr<<"before downsample is "<<surface_acc_frame->size();
           pcl::VoxelGrid<PointTypeIO> surf_sample;
           surf_sample.setInputCloud (surface_acc_frame);
           surf_sample.setLeafSize (0.1, 0.1, 0.1);
           surf_sample.filter (*surface_acc_frame);
-          cerr<<" after down sampled is: "<<surface_acc_frame->size()<<endl;
+//          cerr<<" after down sampled is: "<<surface_acc_frame->size()<<endl;
 
-          cerr<<"before surface radius filter: "<<surface_acc_frame->size();
-          surface_r_filter.setInputCloud(surface_acc_frame);
-          surface_r_filter.filter(*surface_acc_frame);
-          cerr<<" after surface radius filter: "<<surface_acc_frame->size()<<endl;
-
-
+//          cerr<<"before surface radius filter: "<<surface_acc_frame->size();
+//          surface_r_filter.setInputCloud(surface_acc_frame);
+//          surface_r_filter.filter(*surface_acc_frame);
+//          cerr<<" after surface radius filter: "<<surface_acc_frame->size()<<endl;
           pcl::PointCloud<PointType>::Ptr surface_trans (new pcl::PointCloud<PointType>);
           pcl::transformPointCloud (*surface_acc_frame, *surface_trans, surface_t_hist);
-          surface_acc_frame->clear();
+//          surface_acc_frame->clear();
 //          cerr<<"surface_acc_frame size after clear is: "<<surface_acc_frame->size()<<endl;
-
           surface_icp.setInputSource(surface_trans);
           Eigen::Matrix4f init_icp=Eigen::Matrix4f::Identity ();
           while(surfaceicp_continue)
@@ -366,58 +364,12 @@ class Local_map
                   trans_matrix.push_back(trans_test);
                   if((surface_icp.getFitnessScore ()>0.05)&&(iter_num<8))
                   {
-                    //print4x4Matrix(init_icp);
-                      switch (iter_num) {
-                      case 0:
-                          init_icp(0,3)=-0.25;
-                          init_icp(1,3)=0;
-                          iter_num++;
-                          break;
-                      case 1:
-                          init_icp(0,3)=-0.25;
-                          init_icp(1,3)=0.25;
-                          iter_num++;
-                          break;
-                      case 2:
-                          init_icp(0,3)=0;
-                          init_icp(1,3)=0.25;
-                          iter_num++;
-                          break;
-                      case 3:
-                          init_icp(0,3)=0.25;
-                          init_icp(1,3)=0.25;
-                          iter_num++;
-                          break;
-                      case 4:
-                          init_icp(0,3)=0.25;
-                          init_icp(1,3)=0;
-                          iter_num++;
-                          break;
-                      case 5:
-                          init_icp(0,3)=0.25;
-                          init_icp(1,3)=-0.25;
-                          iter_num++;
-                          break;
-                      case 6:
-                          init_icp(0,3)=0;
-                          init_icp(1,3)=-0.25;
-                          iter_num++;
-                          break;
-                      case 7:
-                          init_icp(0,3)=-0.25;
-                          init_icp(1,3)=-0.25;
-                          iter_num++;
-                          break;
-                      default:
-                          break;
-                      }
-                      //print4x4Matrix(corner_t_hist);
-                      surfaceicp_continue=true;
+                    initial_variation(init_icp,iter_num,0.25);
+                    surfaceicp_continue=true;
                   }
                   else
                   {
-                      //cerr<<"end"<<endl;
-                      surfaceicp_continue=false;
+                    surfaceicp_continue=false;
                   }
               }
           }
@@ -425,15 +377,20 @@ class Local_map
           {
             cerr<<"surface icp iter num at "<<surface_frame_index<<" is "<<iter_num<<"  best score is: "<<*min_element(begin(surface_fitness_score),end(surface_fitness_score))<<"  worest score is: "<<*max_element(begin(surface_fitness_score),end(surface_fitness_score))<<endl;
           }
-          iter_num=0;
           Eigen::Matrix4d surface_t_curr = trans_matrix[distance(begin(surface_fitness_score),min_element(begin(surface_fitness_score),end(surface_fitness_score)))];
           surfaceicp_continue=true;
-//          fitness_score.clear();
-//          trans_matrix.clear();
           surface_t_hist=surface_t_curr*surface_t_hist;
 
           //fusion
-          if((abs(corner_odometry_pair.index-surface_frame_index)<2)&&surface_frame_index>(100+accumulate_num))
+          if((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num))&&(corner_odometry_pair.points_num<110)&&(surface_acc_frame->size()>110))
+          {
+            corner_t_hist=surface_t_hist;
+          }
+          else if ((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num))&&(corner_odometry_pair.points_num>110)&&(surface_acc_frame->size()<110))
+          {
+            surface_t_hist=corner_t_hist;
+          }
+          else if((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num)))
           {
             cerr<<"fusion at "<<surface_frame_index<<" begin"<<endl;
             if(corner_odometry_pair.score<(*min_element(begin(surface_fitness_score),end(surface_fitness_score))))
@@ -443,6 +400,17 @@ class Local_map
             else
             {
               corner_t_hist=surface_t_hist;
+            }
+          }
+          else
+          {
+            if(surface_frame_index>(100+accumulate_num))
+            {
+              cerr<<"fusion failed."<<endl;
+            }
+            else
+            {
+              cerr<<"waiting for fusion."<<endl;
             }
           }
 
@@ -487,7 +455,6 @@ class Local_map
       {
         std::this_thread::sleep_for(std::chrono::milliseconds(1));//sleep for 1ms
       }
-//      cerr<<"surface frame "<<surface_frame_index<<"complete"<<endl;
       return 0;
     }
 
