@@ -1,10 +1,10 @@
 <launch>
     <rosparam command="load" file="$(find find_transformation)/param/relocalization.yaml" />
-    <param name="cornermap_path" value="$(find find_transformation)/huiyuan/map/huiyuan1_corner_map.pcd" />
-    <param name="surfacemap_path" value="$(find find_transformation)/huiyuan/map/huiyuan1_surface_map.pcd" />
-    <param name="transformdata_path" value="$(find find_transformation)/huiyuan/vocab/huiyuan1_transform_data.h5" />
-    <param name="vocab_path" value="$(find find_transformation)/huiyuan/vocab/huiyuan1_surface_vocabulary.yml.gz" />
-    <param name="descriptors_path" value="$(find find_transformation)/huiyuan/vocab/huiyuan1_surface_descriptors.h5" />
+    <param name="cornermap_path" value="$(find find_transformation)/hongli/map/hongli2_corner_map.pcd" />
+    <param name="surfacemap_path" value="$(find find_transformation)/hongli/map/hongli2_surface_map.pcd" />
+    <param name="transformdata_path" value="$(find find_transformation)/hongli/vocab/hongli2_transform_data.h5" />
+    <param name="vocab_path" value="$(find find_transformation)/hongli/vocab/hongli2_surface_vocabulary.yml.gz" />
+    <param name="descriptors_path" value="$(find find_transformation)/hongli/vocab/hongli2_surface_descriptors.h5" />
 
     <node pkg="find_transformation" type="transformation_publish" name="transformation_publish" output="screen" />
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find find_transformation)/rviz_conf/myrviz.rviz" required="true" />

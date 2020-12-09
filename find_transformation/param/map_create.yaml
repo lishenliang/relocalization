@@ -1,11 +1,11 @@
 map_creation:
-    frame_num: 4419
-    key_frame_num: 44
+    frame_num: 2664
+    key_frame_num: 26
 
     if_save_clusters: 0
-    if_map_create: 1
-    if_transform_create: 1
-    if_dictionary_generate: 0
+    if_map_create: 0
+    if_transform_create: 0
+    if_dictionary_generate: 1
 
     angle_threshold: 0.15
     distance_threshold: 0.15

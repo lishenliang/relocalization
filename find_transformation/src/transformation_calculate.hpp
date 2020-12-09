@@ -61,12 +61,18 @@ class Local_map
     int iter_num=0;
     int key_frame_num;
     int accumulate_num;
-    double surface_icp_corr_threshold;
+    int keypoints_num_threshold;
     int surface_icp_max_iternum;
+    int corner_icp_max_iternum;
+
+    float fit_score_threshold;
+    float corner_initial_change_scope;
+    float surface_initial_change_scope;
+
+    double surface_icp_corr_threshold;
     double surface_icp_fit_threshold;
     double surface_pass_filter_threshold;
     double corner_icp_corr_threshold;
-    int corner_icp_max_iternum;
     double corner_icp_fit_threshold;
     double corner_pass_filter_threshold;
 //    float radius=0.3;
@@ -195,7 +201,7 @@ class Local_map
       if(corner_frame_index>100)
       {
         *corner_acc_frame=*corner_acc_frame+*laserCloudCornerStack;
-        if(corner_frame_index%accumulate_num==0)
+        if((corner_frame_index%accumulate_num==0)&&(corner_acc_frame->size()>keypoints_num_threshold))
         {
           corner_fitness_score.clear();
           trans_matrix.clear();
@@ -204,7 +210,7 @@ class Local_map
           corner_sample.setInputCloud (corner_acc_frame);
           corner_sample.setLeafSize (0.1, 0.1, 0.1);
           corner_sample.filter (*corner_acc_frame);
-//          cerr<<"corner_acc_frame size after down sampled is: "<<corner_acc_frame->size()<<endl;
+          cerr<<"corner_acc_frame size after down sampled is: "<<corner_acc_frame->size()<<endl;
 
 //          cerr<<"before corner radius filter: "<<corner_acc_frame->size();
 //          corner_r_filter.setInputCloud(corner_acc_frame);
@@ -224,9 +230,9 @@ class Local_map
                   corner_fitness_score.push_back(corner_icp.getFitnessScore ());
                   Eigen::Matrix4d trans_test=corner_icp.getFinalTransformation().cast<double>();
                   trans_matrix.push_back(trans_test);
-                  if((corner_icp.getFitnessScore ()>0.05)&&(iter_num<8))
+                  if((corner_icp.getFitnessScore ()>fit_score_threshold)&&(iter_num<8))
                   {
-                    initial_variation(init_icp,iter_num,0.3);
+                    initial_variation(init_icp,iter_num,corner_initial_change_scope);
                     cornericp_continue=true;
                   }
                   else
@@ -270,10 +276,16 @@ class Local_map
         }
       }
       corner_frame_index++;
-      if(corner_frame_index>(100+accumulate_num))
+      if((corner_frame_index>(100+accumulate_num))&&(corner_acc_frame->size()>keypoints_num_threshold))
       {
         corner_odometry_pair.index=corner_frame_index;
         corner_odometry_pair.score=*min_element(begin(corner_fitness_score),end(corner_fitness_score));
+        corner_odometry_pair.points_num=corner_acc_frame->size();
+      }
+      else
+      {
+        corner_odometry_pair.index=corner_frame_index;
+        corner_odometry_pair.score=100;//large score means the result is unreliable
         corner_odometry_pair.points_num=corner_acc_frame->size();
       }
       while(corner_frame_index>surface_frame_index)
@@ -325,6 +337,7 @@ class Local_map
           }
         }
         surface_t_hist=initial_trans_matrix[distance(begin(initial_fitness_score),min_element(begin(initial_fitness_score),end(initial_fitness_score)))];
+        surface_t_hist=Eigen::Matrix4d::Identity ();
         cerr<<"initial trans is: "<<endl;
         print4x4Matrix(surface_t_hist);
         std::cout<<"size is: "<<initial_fitness_score.size()<<" "<<initial_trans_matrix.size()<<"final initial fitness score is: "<<*min_element(begin(initial_fitness_score),end(initial_fitness_score))<<endl;
@@ -362,9 +375,9 @@ class Local_map
                   surface_fitness_score.push_back(surface_icp.getFitnessScore ());
                   Eigen::Matrix4d trans_test=surface_icp.getFinalTransformation().cast<double>();
                   trans_matrix.push_back(trans_test);
-                  if((surface_icp.getFitnessScore ()>0.05)&&(iter_num<8))
+                  if((surface_icp.getFitnessScore ()>fit_score_threshold)&&(iter_num<8))
                   {
-                    initial_variation(init_icp,iter_num,0.25);
+                    initial_variation(init_icp,iter_num,surface_initial_change_scope);
                     surfaceicp_continue=true;
                   }
                   else
@@ -382,24 +395,28 @@ class Local_map
           surface_t_hist=surface_t_curr*surface_t_hist;
 
           //fusion
-          if((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num))&&(corner_odometry_pair.points_num<110)&&(surface_acc_frame->size()>110))
+          if((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num))&&(corner_odometry_pair.points_num<keypoints_num_threshold)&&(surface_acc_frame->size()>keypoints_num_threshold))
           {
             corner_t_hist=surface_t_hist;
+            //cerr<<"only surface_t_hist"<<endl;
           }
-          else if ((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num))&&(corner_odometry_pair.points_num>110)&&(surface_acc_frame->size()<110))
+          else if ((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num))&&(corner_odometry_pair.points_num>keypoints_num_threshold)&&(surface_acc_frame->size()<keypoints_num_threshold))
           {
             surface_t_hist=corner_t_hist;
+            //cerr<<"only corner_t_hist"<<endl;
           }
           else if((abs(corner_odometry_pair.index-surface_frame_index)<2)&&(surface_frame_index>(100+accumulate_num)))
           {
-            cerr<<"fusion at "<<surface_frame_index<<" begin"<<endl;
+            //cerr<<"fusion at "<<surface_frame_index<<" begin"<<endl;
             if(corner_odometry_pair.score<(*min_element(begin(surface_fitness_score),end(surface_fitness_score))))
             {
               surface_t_hist=corner_t_hist;
+              cerr<<"using corner"<<endl;
             }
             else
             {
               corner_t_hist=surface_t_hist;
+              cerr<<"using surface"<<endl;
             }
           }
           else
@@ -492,6 +509,12 @@ class Local_map
 
       nh.param<int>("relocalization/key_frame_num",key_frame_num,20);
       nh.param<int>("relocalization/accumulate_num",accumulate_num,1);
+      nh.param<int>("relocalization/keypoints_num_threshold",keypoints_num_threshold,150);
+
+      nh.param<float>("relocalization/fit_score_threshold",fit_score_threshold,0.05);
+      nh.param<float>("relocalization/corner_initial_change_scope",corner_initial_change_scope,0.3);
+      nh.param<float>("relocalization/surface_initial_change_scope",surface_initial_change_scope,0.25);
+
       nh.param<double>("relocalization/surface_icp_corr_threshold",surface_icp_corr_threshold,0.6);
       nh.param<int>("relocalization/surface_icp_max_iternum",surface_icp_max_iternum,50);
       nh.param<double>("relocalization/surface_icp_fit_threshold",surface_icp_fit_threshold,0.05);
