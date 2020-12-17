@@ -64,6 +64,9 @@ class Local_map
     int keypoints_num_threshold;
     int surface_icp_max_iternum;
     int corner_icp_max_iternum;
+    int mincluster_size;
+    int test_descriptors_keyframe_num;
+    int if_test_vocab;
 
     float fit_score_threshold;
     float corner_initial_change_scope;
@@ -83,6 +86,10 @@ class Local_map
     string transformdata_path;
     string vocab_path;
     string descriptors_path;
+    string test_descriptors_path;
+    string vocab_test_path;
+    ofstream outfile;
+
     pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> corner_icp;
     pcl::IterativeClosestPoint<pcl::PointXYZI, pcl::PointXYZI> surface_icp;
 
@@ -128,6 +135,8 @@ class Local_map
     nav_msgs::Path path;
     DBoW3::Vocabulary surface_vocabulary;
     DBoW3::Database surface_database;
+
+
     flann::Matrix<float> data_transform;
     odometry_pair corner_odometry_pair,surface_odometry_pair;
 
@@ -311,7 +320,7 @@ class Local_map
       }
       else if (surface_frame_index==100)
       {
-        initial_find(current_surface_local_map,surface_database,data_transform,initial_trans_candidates);
+        initial_find(current_surface_local_map,surface_database,data_transform,initial_trans_candidates,mincluster_size);
         cerr<<"candidate size: "<<initial_trans_candidates.size()<<" surface local map size is: "<<current_surface_local_map->size()<<endl;
         vector<double> initial_fitness_score;
         vector<Eigen::Matrix4d,Eigen::aligned_allocator<Eigen::Matrix4d>> initial_trans_matrix;
@@ -337,7 +346,8 @@ class Local_map
           }
         }
         surface_t_hist=initial_trans_matrix[distance(begin(initial_fitness_score),min_element(begin(initial_fitness_score),end(initial_fitness_score)))];
-        surface_t_hist=Eigen::Matrix4d::Identity ();
+        //surface_t_hist=Eigen::Matrix4d::Identity ();
+        surface_t_hist=surface_t_hist*initial_trans_candidates[distance(begin(initial_fitness_score),min_element(begin(initial_fitness_score),end(initial_fitness_score)))].cast<double>();
         cerr<<"initial trans is: "<<endl;
         print4x4Matrix(surface_t_hist);
         std::cout<<"size is: "<<initial_fitness_score.size()<<" "<<initial_trans_matrix.size()<<"final initial fitness score is: "<<*min_element(begin(initial_fitness_score),end(initial_fitness_score))<<endl;
@@ -498,6 +508,29 @@ class Local_map
       surfaceicp_findtrans(surfacemap,surfacemap_kdtree,surface_frame);
 
     }
+    void vocab_test(string path,int num,DBoW3::Database & database)
+    {
+      outfile.open(vocab_test_path);
+      for(int i=1;i<=num;i++)
+      {
+        flann::Matrix<float> surface_descriptor;
+        DBoW3::QueryResults ret;
+        flann::load_from_file(surface_descriptor,path,"keyframe"+to_string(i));
+        cv::Mat_<float> test_descriptor(surface_descriptor.rows,308);
+        for(size_t j=0;j<surface_descriptor.rows;j++)
+        {
+            for(size_t k=0;k<308;k++)
+            {
+                test_descriptor[j][k]=surface_descriptor[j][k];
+            }
+        }
+        database.query(test_descriptor,ret,4);
+        cerr<<ret<<endl<<endl;
+        outfile<<i<<"th test frame result: "<<endl;
+        outfile<<ret<<endl<<endl;
+      }
+      outfile.close();
+    }
     Local_map()
     {
       //load parameters
@@ -506,10 +539,15 @@ class Local_map
       nh.param<std::string>("/vocab_path",vocab_path,"default value");
       nh.param<std::string>("/descriptors_path",descriptors_path,"default value");
       nh.param<std::string>("/transformdata_path",transformdata_path,"default value");
+      nh.param<std::string>("/test_descriptors_path",test_descriptors_path,"default value");
+      nh.param<std::string>("/vocab_test_path",vocab_test_path,"default value");
 
       nh.param<int>("relocalization/key_frame_num",key_frame_num,20);
       nh.param<int>("relocalization/accumulate_num",accumulate_num,1);
       nh.param<int>("relocalization/keypoints_num_threshold",keypoints_num_threshold,150);
+      nh.param<int>("relocalization/mincluster_size",mincluster_size,50);
+      nh.param<int>("relocalization/test_descriptors_keyframe_num",test_descriptors_keyframe_num,30);
+      nh.param<int>("relocalization/if_test_vocab",if_test_vocab,0);
 
       nh.param<float>("relocalization/fit_score_threshold",fit_score_threshold,0.05);
       nh.param<float>("relocalization/corner_initial_change_scope",corner_initial_change_scope,0.3);
@@ -531,14 +569,16 @@ class Local_map
       pcl::io::loadPCDFile<PointType> (surfacemap_path, *surfacemap);
       surfacemap_kdtree->setInputCloud(surfacemap);
       surface_sub= nh.subscribe<sensor_msgs::PointCloud2>("surfacestack",10000,&Local_map::surface_callback,this);
-      cerr<<"map and kdtree created"<<endl;
+      cerr<<"corner map: "<<cornermap->size()<<" points. "<<" surface map: "<<surfacemap->size()<<" points."<<endl;
 
       path_publisher=nh.advertise<nav_msgs::Path>("/path",10000);
       surface_odometry_publisher=nh.advertise<nav_msgs::Odometry>("/surface_odometry",10000);
       corner_odometry_publisher=nh.advertise<nav_msgs::Odometry>("/corner_odometry",10000);
       database_initialize(surface_vocabulary,surface_database,key_frame_num,vocab_path,descriptors_path);
       flann::load_from_file(data_transform,transformdata_path,"transform_data");
-      cerr<<"vocabulary and transformation loaded"<<endl;
+      if(if_test_vocab)
+        vocab_test(test_descriptors_path,test_descriptors_keyframe_num,surface_database);
+
       cout<<"transform: "<<data_transform.rows<<" database size is: "<<surface_database.size()<<" vocab size is: "<<surface_vocabulary.size()<<endl;
 
       //set surface icp
@@ -568,5 +608,7 @@ class Local_map
       //surface_r_filter.setKeepOrganized(true);
       corner_r_filter.setRadiusSearch(1);
       corner_r_filter.setMinNeighborsInRadius(3);
+
+
     }
 };

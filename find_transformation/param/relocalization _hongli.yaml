@@ -2,11 +2,11 @@ relocalization:
     surface_icp_corr_threshold: 0.6
     surface_icp_max_iternum: 50
     surface_icp_fit_threshold: 0.05 
-    surface_pass_filter_threshold: 150
+    surface_pass_filter_threshold: 110
     corner_icp_corr_threshold: 0.6
     corner_icp_max_iternum: 50
     corner_icp_fit_threshold: 0.05 
-    corner_pass_filter_threshold: 50
+    corner_pass_filter_threshold: 100
     key_frame_num: 22
     accumulate_num: 1
     keypoints_num_threshold: 100
@@ -15,4 +15,4 @@ relocalization:
     surface_initial_change_scope: 0.3
     mincluster_size: 200
     test_descriptors_keyframe_num: 20
-    if_test_vocab: 0
+    if_test_vocab: 1

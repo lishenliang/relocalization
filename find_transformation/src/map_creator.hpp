@@ -48,6 +48,7 @@ class Map_creator
   string corner_map_saved_path;
   string surface_map_saved_path;
   string clusters_saved_path;
+  string clusters_infor_path;
 
   size_t cornerframe_index=0;
   size_t surfaceframe_index=0;
@@ -60,6 +61,8 @@ class Map_creator
   int if_map_create;
   int if_transform_create;
   int if_dictionary_generate;
+  int if_cluster_information_out;
+  int if_use_distance;
 
   int mincluster_size;
   int maxcluster_size;
@@ -71,8 +74,11 @@ class Map_creator
   double leaf_size;//downsample size
   double cluster_tolerance;//<0.5, evaluated by setConditionFunction
 
+  ofstream outfile;
+
   ros::NodeHandle nh;
   ros::Subscriber corner_aligned,surface_aligned;
+  pcl::PCDReader reader;
   pcl::PCDWriter writer;
   pcl::PointCloud<PointTypeIO>::Ptr cornermap=boost::make_shared<pcl::PointCloud<PointTypeIO>>();
   pcl::PointCloud<PointTypeIO>::Ptr surfacemap=boost::make_shared<pcl::PointCloud<PointTypeIO>>();
@@ -80,42 +86,6 @@ class Map_creator
 
   pcl::PassThrough<pcl::PointXYZI> pass;
   vector<cv::Mat> descripors;
-
-  void map_create()
-  {
-    pcl::PointCloud<PointTypeIO>::Ptr cloud_1 (new pcl::PointCloud<PointTypeIO>), cloud_2 (new pcl::PointCloud<PointTypeIO>), cloud_3 (new pcl::PointCloud<PointTypeIO>), cloud_4 (new pcl::PointCloud<PointTypeIO>);
-    pcl::PCDReader reader;
-    for(int i=1;i<=frame_num;i++)
-    {
-        reader.read(surf_frame_path+to_string(i)+".pcd",*cloud_1);
-        *cloud_2=*cloud_2+*cloud_1;
-        cerr<<i;
-    }
-    cerr<<"surf map before down sampled is: "<<cloud_2->size()<<endl;
-    pcl::VoxelGrid<PointTypeIO> surf_sample;
-    surf_sample.setInputCloud (cloud_2);
-    surf_sample.setLeafSize (leaf_size, leaf_size, leaf_size);
-    surf_sample.setDownsampleAllData (true);
-    surf_sample.filter (*cloud_2);
-    cerr<<"surf map after down sampled is: "<<cloud_2->size()<<endl;
-
-    writer.write(surface_map_saved_path,*cloud_2);
-
-    for(int i=1;i<=frame_num;i++)
-    {
-        reader.read(corner_frame_path+to_string(i)+".pcd",*cloud_3);
-        *cloud_4=*cloud_4+*cloud_3;
-        //cerr<<i;
-    }
-    cerr<<"corner map before down sampled is: "<<cloud_4->size()<<endl;
-    pcl::VoxelGrid<PointTypeIO> corner_sample;
-    corner_sample.setInputCloud (cloud_4);
-    corner_sample.setLeafSize (leaf_size, leaf_size, leaf_size);
-    corner_sample.setDownsampleAllData (true);
-    corner_sample.filter (*cloud_4);
-    cerr<<"corner map after down sampled is: "<<cloud_4->size()<<endl;
-    writer.write(corner_map_saved_path,*cloud_4);
-  }
   void transform_creator(){
       vector<double> V;
       vector<double>::iterator it;
@@ -204,6 +174,8 @@ class Map_creator
     {
       key_frame_index++;
       cerr<<key_frame_index<<"th key frame begin create"<<endl;
+      if(if_cluster_information_out)
+        outfile<<key_frame_index<<"th cluster information: "<<endl;
       pcl::PointCloud<PointTypeIO>::Ptr  cloud_out (new pcl::PointCloud<PointTypeIO>);
       pcl::PointCloud<PointTypeFull>::Ptr cloud_with_normals (new pcl::PointCloud<PointTypeFull>());
       pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
@@ -250,23 +222,32 @@ class Map_creator
       flann::Matrix<float> flanndata_descriptor(new float[clusters->size()*308],clusters->size(),308);
       for(size_t k=0;k<clusters->size();++k)
       {
-          boost::shared_ptr<std::vector<int> > indicesptr (new std::vector<int> ((*clusters)[k].indices));
-          pcl::VFHEstimation<pcl::PointXYZI,pcl::Normal,pcl::VFHSignature308> vfh;
-          //output datasets
-          pcl::PointCloud<pcl::VFHSignature308>::Ptr vfh_out (new pcl::PointCloud<pcl::VFHSignature308>());
-          vfh.setInputCloud(cloud_out);
-          vfh.setIndices(indicesptr);
-          vfh.setInputNormals(normals);
-          vfh.setSearchMethod(search_tree);
-          vfh.compute(*vfh_out);
-          //cv::Mat_<float> descriptor(1,308);
-          //cv::Mat descriptor(1,308,CV_32F);//,vfh_out->points[0].histogram);
-          for(size_t l=0;l<308;l++)
-          {
-              descriptor(k,l)=vfh_out->points[0].histogram[l];
-              flanndata_descriptor[k][l]=vfh_out->points[0].histogram[l];
-          }
+        if(if_cluster_information_out)
+          outfile<<(*clusters)[k].indices.size()<<" ";
+        boost::shared_ptr<std::vector<int> > indicesptr (new std::vector<int> ((*clusters)[k].indices));
+        pcl::VFHEstimation<pcl::PointXYZI,pcl::Normal,pcl::VFHSignature308> vfh;
+        //output datasets
+        pcl::PointCloud<pcl::VFHSignature308>::Ptr vfh_out (new pcl::PointCloud<pcl::VFHSignature308>());
+        vfh.setInputCloud(cloud_out);
+        vfh.setIndices(indicesptr);
+        vfh.setInputNormals(normals);
+        vfh.setSearchMethod(search_tree);
+        if(if_use_distance)
+        {
+          vfh.setNormalizeDistance(true);
+          vfh.setFillSizeComponent(true);
+        }
+        vfh.compute(*vfh_out);
+        //cv::Mat_<float> descriptor(1,308);
+        //cv::Mat descriptor(1,308,CV_32F);//,vfh_out->points[0].histogram);
+        for(size_t l=0;l<308;l++)
+        {
+            descriptor(k,l)=vfh_out->points[0].histogram[l];
+            flanndata_descriptor[k][l]=vfh_out->points[0].histogram[l];
+        }
       }
+      if(if_cluster_information_out)
+        outfile<<"***********************"<<endl;
       descripors.push_back(descriptor);
       flann::save_to_file(flanndata_descriptor,surface_descriptors_path,"keyframe"+to_string(key_frame_index));
       // Using the intensity channel for lazy visualization of the output
@@ -282,6 +263,21 @@ class Map_creator
         for (size_t j = 0; j < (*clusters)[i].indices.size (); ++j)
           (*cloud_out)[(*clusters)[i].indices[j]].intensity = label;
       }
+      //remove small and large clusters
+      pcl::PointIndices::Ptr cluster_indices(new pcl::PointIndices);
+      for(int i=0;i<clusters->size();++i)
+      {
+        for(int j=0;j<(*clusters)[i].indices.size();j++)
+        {
+          cluster_indices->indices.push_back((*clusters)[i].indices[j]);
+        }
+      }
+      pcl::ExtractIndices<pcl::PointXYZI> extractor;
+      extractor.setInputCloud(cloud_out);
+      extractor.setIndices(cluster_indices);
+      extractor.setNegative(false);//true: remove the ground;false: extract the ground
+      extractor.filter(*cloud_out);
+
       if(if_save_clusters)
         writer.write(clusters_saved_path+to_string(key_frame_index)+".pcd",*cloud_out);
 
@@ -290,7 +286,7 @@ class Map_creator
       {
         cerr<<"key frame num is: "<<key_frame_index<<endl;
         //create vocabulary
-        DBoW3::Vocabulary vocab;
+        DBoW3::Vocabulary vocab(7,3);
         cerr<<descripors.size()<<endl;
         vocab.create(descripors);
         //compare with database
@@ -309,144 +305,6 @@ class Map_creator
         vocab.save(surface_vocab_path);
         cerr<<vocab<<endl;
       }
-    }
-  }
-  void dictionary_generate()
-  {
-      pcl::PCDReader reader;
-      pcl::PCDWriter writer;
-      vector<cv::Mat> descripors;
-      for(size_t i=1;i<=key_frame_num;i++)
-      {
-          pcl::PointCloud<PointTypeIO>::Ptr cloud_1 (new pcl::PointCloud<PointTypeIO>), cloud_in (new pcl::PointCloud<PointTypeIO>), cloud_out (new pcl::PointCloud<PointTypeIO>);
-          pcl::PointCloud<PointTypeFull>::Ptr cloud_with_normals (new pcl::PointCloud<PointTypeFull>());
-          pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
-          pcl::IndicesClustersPtr clusters (new pcl::IndicesClusters), small_clusters (new pcl::IndicesClusters), large_clusters (new pcl::IndicesClusters);
-          pcl::search::KdTree<PointTypeIO>::Ptr search_tree (new pcl::search::KdTree<PointTypeIO>);
-          for(size_t j=100*(i-1)+1;j<=i*100;j++)
-          {
-              reader.read(surf_frame_path+to_string(j)+".pcd",*cloud_1);
-              *cloud_in=*cloud_in+*cloud_1;
-          }
-          cerr<<i<<" cloud_in size: "<<cloud_in->size()<<"cloud_1 size: "<<cloud_1->size()<<endl;
-          // Downsample the cloud using a Voxel Grid class
-          pcl::VoxelGrid<PointTypeIO> vg;
-          vg.setInputCloud (cloud_in);
-          vg.setLeafSize (leaf_size, leaf_size, leaf_size);
-          vg.setDownsampleAllData (true);
-          vg.filter (*cloud_out);
-          cerr<<"poins of cloud_in is:"<<cloud_in->size()<<"points of cloud_out is:"<<cloud_out->size()<<endl;
-          //ground filter
-          detectObjectsOnCloud(cloud_out,cloud_out);
-          // Set up a Normal Estimation class and merge data in cloud_with_normals
-          pcl::copyPointCloud (*cloud_out, *cloud_with_normals);
-          pcl::NormalEstimation<PointTypeIO, PointTypeFull> ne;
-          ne.setInputCloud (cloud_out);
-          ne.setSearchMethod (search_tree);
-          ne.setRadiusSearch (0.5);
-          ne.compute (*cloud_with_normals);
-
-          pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> normal_es;
-          normal_es.setInputCloud(cloud_out);
-          normal_es.setSearchMethod(search_tree);
-          normal_es.setRadiusSearch(0.5);
-          normal_es.compute(*normals);
-          // Set up a Conditional Euclidean Clustering class
-          pcl::ConditionalEuclideanClustering<PointTypeFull> cec (true);
-          cec.setInputCloud (cloud_with_normals);
-          cec.setConditionFunction (&customRegionGrowing);
-
-          cec.setClusterTolerance (cluster_tolerance);//<0.5, evaluated by setConditionFunction
-          cec.setMinClusterSize (mincluster_size);//min number
-          cec.setMaxClusterSize (maxcluster_size);
-          cec.segment (*clusters);
-          cec.getRemovedClusters (small_clusters, large_clusters);
-          //vfh compute
-          //cv::Mat descriptor =cv::Mat::zeros(8,308,CV_8U);//clusters->size()
-          cout<<"small: "<<small_clusters->size()<<"large: "<<large_clusters->size()<<"normal:"<<clusters->size()<<endl;
-          cv::Mat_<float> descriptor(clusters->size(),308);
-          flann::Matrix<float> flanndata_descriptor(new float[clusters->size()*308],clusters->size(),308);
-          for(size_t k=0;k<clusters->size();++k)
-          {
-              boost::shared_ptr<std::vector<int> > indicesptr (new std::vector<int> ((*clusters)[k].indices));
-
-              pcl::VFHEstimation<pcl::PointXYZI,pcl::Normal,pcl::VFHSignature308> vfh;
-              //output datasets
-              pcl::PointCloud<pcl::VFHSignature308>::Ptr vfh_out (new pcl::PointCloud<pcl::VFHSignature308>());
-              vfh.setInputCloud(cloud_out);
-              vfh.setIndices(indicesptr);
-              vfh.setInputNormals(normals);
-              vfh.setSearchMethod(search_tree);
-              vfh.compute(*vfh_out);
-              //cv::Mat_<float> descriptor(1,308);
-
-              //cv::Mat descriptor(1,308,CV_32F);//,vfh_out->points[0].histogram);
-              for(size_t l=0;l<308;l++)
-              {
-                  descriptor(k,l)=vfh_out->points[0].histogram[l];
-                  flanndata_descriptor[k][l]=vfh_out->points[0].histogram[l];
-              }
-          }
-          descripors.push_back(descriptor);
-          flann::save_to_file(flanndata_descriptor,surface_descriptors_path,"keyframe"+to_string(i));
-          // Using the intensity channel for lazy visualization of the output
-          for (size_t i = 0; i < small_clusters->size (); ++i)
-            for (size_t j = 0; j < (*small_clusters)[i].indices.size (); ++j)
-              (*cloud_out)[(*small_clusters)[i].indices[j]].intensity = -2.0;
-          for (size_t i = 0; i < large_clusters->size (); ++i)
-            for (size_t j = 0; j < (*large_clusters)[i].indices.size (); ++j)
-              (*cloud_out)[(*large_clusters)[i].indices[j]].intensity = -1.0;
-          for (size_t i = 0; i < clusters->size (); ++i)
-          {
-            int label =i;
-            for (size_t j = 0; j < (*clusters)[i].indices.size (); ++j)
-              (*cloud_out)[(*clusters)[i].indices[j]].intensity = label;
-          }
-          if(if_save_clusters)
-            writer.write(clusters_saved_path+to_string(i)+".pcd",*cloud_out);
-      }
-
-      //create vocabulary
-      DBoW3::Vocabulary vocab;
-      cerr<<descripors.size()<<endl;
-      vocab.create(descripors);
-      //compare with database
-      DBoW3::Database db(vocab,false,0);
-      for(size_t i=0;i<descripors.size();i++)
-      {
-          db.add(descripors[i]);
-      }
-      for(size_t i=0;i<descripors.size();i++)
-      {
-          DBoW3::QueryResults ret;
-          db.query(descripors[i],ret,4);
-          cerr<<ret<<endl<<endl;
-      }
-      cerr<<vocab.size()<<endl;
-      vocab.save(surface_vocab_path);
-      cerr<<vocab<<endl;
-  }
-  void create()
-  {
-    cerr<<"creation begin"<<endl;
-    if(if_map_create)
-    {
-      cerr<<"creating map"<<endl;
-      map_create();
-    }
-    else if(if_transform_create)
-    {
-      cerr<<"creating transformation"<<endl;
-      transform_creator();
-    }
-    else if(if_dictionary_generate)
-    {
-      cerr<<"creating dictionary"<<endl;
-      dictionary_generate();
-    }
-    else
-    {
-      cerr<<"nothing create"<<endl;
     }
   }
   void cornermap_creation(const sensor_msgs::PointCloud2ConstPtr& input)
@@ -529,6 +387,34 @@ void surface_aligned_callback(const sensor_msgs::PointCloud2ConstPtr& input)
     dictionary_create(input);
   }
 }
+void vfh_test()
+{
+  pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
+  pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
+  pcl::search::KdTree<PointTypeIO>::Ptr search_tree (new pcl::search::KdTree<PointTypeIO>);
+
+  reader.read("/home/beihai/ros_in_qt/src/find_transformation/hongli/clusters/1.pcd",*cloud);
+
+  pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> normal_es;
+  normal_es.setInputCloud(cloud);
+  normal_es.setSearchMethod(search_tree);
+  normal_es.setRadiusSearch(0.5);
+  normal_es.compute(*normals);
+
+  pcl::VFHEstimation<pcl::PointXYZI,pcl::Normal,pcl::VFHSignature308> vfh;
+  //output datasets
+  pcl::PointCloud<pcl::VFHSignature308>::Ptr vfh_out (new pcl::PointCloud<pcl::VFHSignature308>());
+  vfh.setInputCloud(cloud);
+  vfh.setInputNormals(normals);
+  vfh.setNormalizeDistance(true);
+  vfh.setFillSizeComponent(true);
+  vfh.setSearchMethod(search_tree);
+  vfh.compute(*vfh_out);
+  for(int i=135;i<180;i++)
+  {
+    cerr<<vfh_out->points[0].histogram[i]<<"  ";
+  }
+}
   Map_creator()
   {
     //init parameters
@@ -541,6 +427,7 @@ void surface_aligned_callback(const sensor_msgs::PointCloud2ConstPtr& input)
     nh.param<std::string>("/corner_map_saved_path",corner_map_saved_path,"/home/beihai/data/pcd/playground/map/corner_map.pcd");
     nh.param<std::string>("/surface_map_saved_path",surface_map_saved_path,"/home/beihai/data/pcd/playground/map/surface_map.pcd");
     nh.param<std::string>("/clusters_saved_path",clusters_saved_path,"default value");
+    nh.param<std::string>("/clusters_infor_path",clusters_infor_path,"default value");
 
     nh.param<int>("map_creation/frame_num",frame_num,2232);
     nh.param<int>("map_creation/key_frame_num",key_frame_num,22);
@@ -548,6 +435,9 @@ void surface_aligned_callback(const sensor_msgs::PointCloud2ConstPtr& input)
     nh.param<int>("map_creation/if_map_create",if_map_create,0);
     nh.param<int>("map_creation/if_transform_create",if_transform_create,0);
     nh.param<int>("map_creation/if_dictionary_generate",if_dictionary_generate,0);
+    nh.param<int>("map_creation/if_cluster_information_out",if_cluster_information_out,0);
+    nh.param<int>("map_creation/if_use_distance",if_use_distance,0);
+
     nh.param<int>("map_creation/mincluster_size",mincluster_size,30);
     nh.param<int>("map_creation/maxcluster_size",maxcluster_size,50000);
 
@@ -559,13 +449,16 @@ void surface_aligned_callback(const sensor_msgs::PointCloud2ConstPtr& input)
     nh.param<double>("map_creation/cluster_tolerance",cluster_tolerance,0.5);
     corner_aligned=nh.subscribe<sensor_msgs::PointCloud2>("cornerstack_aligned",10000,&Map_creator::corner_aligned_callback,this);
     surface_aligned=nh.subscribe<sensor_msgs::PointCloud2>("surfacestack_aligned",10000,&Map_creator::surface_aligned_callback,this);
-
+    vfh_test();
     if(if_transform_create)
     {
       cerr<<"creating transformation"<<endl;
       transform_creator();
       cerr<<"creating transformation complete"<<endl;
-
+    }
+    if(if_cluster_information_out)
+    {
+      outfile.open(clusters_infor_path);
     }
   }
 };

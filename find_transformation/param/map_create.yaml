@@ -1,15 +1,17 @@
 map_creation:
-    frame_num: 2664
-    key_frame_num: 26
+    frame_num: 2079
+    key_frame_num: 20
 
     if_save_clusters: 0
     if_map_create: 0
     if_transform_create: 0
     if_dictionary_generate: 1
+    if_cluster_information_out: 0
+    if_use_distance: 0
 
     angle_threshold: 0.15
     distance_threshold: 0.15
-    mincluster_size: 30
+    mincluster_size: 200
     maxcluster_size: 50000
     leaf_size: 0.1
     cluster_tolerance: 0.5
