@@ -1,3 +1,5 @@
+#ifndef TRANSFORMATON_CALCULATE
+#define TRANSFORMATON_CALCULATE
 #include<ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include "nav_msgs/OccupancyGrid.h"
@@ -17,7 +19,6 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 #include<thread>
-
 //#include <eigen3/Eigen/Dense>
 #include "common.h"
 #include "tools_logger.hpp"
@@ -609,6 +610,6 @@ class Local_map
       corner_r_filter.setRadiusSearch(1);
       corner_r_filter.setMinNeighborsInRadius(3);
 
-
     }
 };
+#endif  /*TRANSFORMATON_CALCULATE*/

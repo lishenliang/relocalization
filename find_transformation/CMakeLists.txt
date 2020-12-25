@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.0.2)
 project(find_transformation)
-
+set(CMAKE_BUILD_TYPE "Release")
 ## Compile as C++11, supported in ROS Kinetic and newer
 add_compile_options(-std=c++14)
 
@@ -8,14 +8,22 @@ add_compile_options(-std=c++14)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  roscpp rospy std_msgs nav_msgs tf
+  roscpp rospy std_msgs nav_msgs tf geometry_msgs sensor_msgs
 )
 
+
 set(OpenCV_DIR /opt/ros/kinetic/share/OpenCV-3.3.1-dev)
-find_package(PCL 1.9 REQUIRED)
+set(PCL_DIR "/home/beihai/pcl-1.9/share/pcl-1.9")
+find_package(PCL REQUIRED)
+message(STATUS "***** PCL version: ${PCL_VERSION} *****")
 find_package(HDF5 REQUIRED)
-find_package(FLANN REQUIRED)
+#find_package(FLANN REQUIRED)
 find_package(OpenCV REQUIRED)
+
+find_package(OpenMP QUIET)
+
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS}   ${OpenMP_C_FLAGS}")
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
 
@@ -108,7 +116,7 @@ find_package(OpenCV REQUIRED)
 catkin_package(
   INCLUDE_DIRS include
   LIBRARIES find_transformation
-  CATKIN_DEPENDS roscpp rospy std_msgs nav_msgs
+  CATKIN_DEPENDS roscpp rospy std_msgs nav_msgs geometry_msgs sensor_msgs
 #  DEPENDS system_lib
 )
 
@@ -148,6 +156,8 @@ add_definitions(${PCL_DEFINITIONS})
 add_executable(transformation_publish src/transformation_publish.cpp)
 add_executable(map_creator src/map_creator.cpp)
 
+add_executable(livox_scanRegistration src/scanRegistration.cpp)
+add_executable(livox_laserMapping src/laserMapping.cpp)
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
 ## target back to the shorter version for ease of user use
@@ -165,6 +175,10 @@ target_link_libraries(transformation_publish
 target_link_libraries(map_creator
    ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS} ${DBoW3_LIBS} ${Boost_LIBRARIES} mpi_cxx
 )
+
+
+target_link_libraries(livox_scanRegistration ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
+target_link_libraries(livox_laserMapping ${catkin_LIBRARIES} ${PCL_LIBRARIES} ${OpenCV_LIBS})
 #############
 ## Install ##
 #############

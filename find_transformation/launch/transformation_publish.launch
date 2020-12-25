@@ -1,12 +1,12 @@
 <launch>
-    <rosparam command="load" file="$(find find_transformation)/param/relocalization.yaml" />
-    <param name="cornermap_path" value="$(find find_transformation)/playground/map/corner_map.pcd" />
-    <param name="surfacemap_path" value="$(find find_transformation)/playground/map/surface_map.pcd" />
-    <param name="transformdata_path" value="$(find find_transformation)/playground/vocab/playground1_transform_data.h5" />
-    <param name="vocab_path" value="$(find find_transformation)/playground/vocab/vocab_to_use/playground1_no_distance/mytest.yml.gz" />
-    <param name="descriptors_path" value="$(find find_transformation)/playground/vocab/vocab_to_use/playground1_no_distance/mytest.h5" />
-    <param name="test_descriptors_path" value="$(find find_transformation)/playground/vocab/vocab_to_use/playground2_no_distance/mytest.h5" />
-    <param name="vocab_test_path" value="$(find find_transformation)/playground/vocab/vocab_to_use/playground1_no_distance/playground1vsplayground2.txt" />
+    <rosparam command="load" file="$(find find_transformation)/param/relocalization _hongli.yaml" />
+    <param name="cornermap_path" value="$(find find_transformation)/hongli/map/hongli2_corner_map.pcd" />
+    <param name="surfacemap_path" value="$(find find_transformation)/hongli/map/hongli2_surface_map.pcd" />
+    <param name="transformdata_path" value="$(find find_transformation)/hongli/vocab/hongli2_transform_data.h5" />
+    <param name="vocab_path" value="$(find find_transformation)/hongli/vocab/vocab_to_use/hongli2_v1/mytest.yml.gz" />
+    <param name="descriptors_path" value="$(find find_transformation)/hongli/vocab/vocab_to_use/hongli2_v1/mytest.h5" />
+    <param name="test_descriptors_path" value="$(find find_transformation)/hongli/vocab/vocab_to_use/hongli3_v1/mytest.h5" />
+    <param name="vocab_test_path" value="$(find find_transformation)/hongli/vocab/vocab_to_use/hongli2_v1/hongli2vhongli2.txt" />
 
     <node pkg="find_transformation" type="transformation_publish" name="transformation_publish" output="screen" />
     <node name="rviz" pkg="rviz" type="rviz" args="-d $(find find_transformation)/rviz_conf/myrviz.rviz" required="true" />

@@ -3,14 +3,14 @@
     <param name="corner_frame_path" value="$(find find_transformation)/playground/corner_aligned/" />
     <param name="surf_frame_path" value="$(find find_transformation)/playground/surf_aligned/" />
 
-    <param name="surface_descriptors_path" value="$(find find_transformation)/playground/vocab/mytest.h5" />
-    <param name="surface_vocab_path" value="$(find find_transformation)/playground/vocab/mytest.yml.gz" />
+    <param name="surface_descriptors_path" value="$(find find_transformation)/hongli/vocab/mytest.h5" />
+    <param name="surface_vocab_path" value="$(find find_transformation)/hongli/vocab/mytest.yml.gz" />
     <param name="corner_map_saved_path" value="$(find find_transformation)/playground/map/playground2_corner_map.pcd" />
     <param name="surface_map_saved_path" value="$(find find_transformation)/playground/map/playground2_surface_map.pcd" />
     <param name="transformation_path" value="$(find find_transformation)/playground/playground1.txt" />
     <param name="transformation_saved_path" value="$(find find_transformation)/playground/vocab/playground_transform_data.h5" />
-    <param name="clusters_saved_path" value="$(find find_transformation)/playground/clusters/" />
-    <param name="clusters_infor_path" value="$(find find_transformation)/playground/clusters/clusters1.txt" />
+    <param name="clusters_saved_path" value="$(find find_transformation)/hongli/clusters/" />
+    <param name="clusters_infor_path" value="$(find find_transformation)/hongli/clusters/hongli3clusters.txt" />
 
     <node pkg="find_transformation" type="map_creator" name="map_creator" output="screen" />
 </launch>

@@ -1,3 +1,5 @@
+#ifndef MAP_CREATOR
+#define MAP_CREATOR
 #include <ros/ros.h>
 #include <sensor_msgs/PointCloud2.h>
 #include<vector>
@@ -32,6 +34,7 @@
 #include <pcl/segmentation/conditional_euclidean_clustering.h>
 #include<pcl/features/vfh.h>
 #include<pcl/visualization/pcl_plotter.h>
+#include"keyframe_process.hpp"
 using namespace std;
 typedef pcl::PointXYZI PointTypeIO;
 typedef pcl::PointXYZINormal PointTypeFull;
@@ -238,12 +241,20 @@ class Map_creator
           vfh.setFillSizeComponent(true);
         }
         vfh.compute(*vfh_out);
-        //cv::Mat_<float> descriptor(1,308);
-        //cv::Mat descriptor(1,308,CV_32F);//,vfh_out->points[0].histogram);
+        //compute distance distrubution
+        vector<float> dist;
+        dist.resize(45);
+        compute_dis_feature(cloud_out,dist,indicesptr);
+
         for(size_t l=0;l<308;l++)
         {
             descriptor(k,l)=vfh_out->points[0].histogram[l];
             flanndata_descriptor[k][l]=vfh_out->points[0].histogram[l];
+        }
+        for (int l=0;l<45;l++)
+        {
+          descriptor(k,l+135)=dist[l];
+          flanndata_descriptor[k][l+135]=dist[l];
         }
       }
       if(if_cluster_information_out)
@@ -392,28 +403,31 @@ void vfh_test()
   pcl::PointCloud<pcl::PointXYZI>::Ptr cloud (new pcl::PointCloud<pcl::PointXYZI>);
   pcl::PointCloud<pcl::Normal>::Ptr normals (new pcl::PointCloud<pcl::Normal>);
   pcl::search::KdTree<PointTypeIO>::Ptr search_tree (new pcl::search::KdTree<PointTypeIO>);
-
+  vector<float> dist;
+  dist.resize(45);
   reader.read("/home/beihai/ros_in_qt/src/find_transformation/hongli/clusters/1.pcd",*cloud);
+  //compute_dis_feature(cloud,dist);
+  for(int i=0;i<dist.size();i++)
+    cerr<<dist[i]<<" ";
+//  pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> normal_es;
+//  normal_es.setInputCloud(cloud);
+//  normal_es.setSearchMethod(search_tree);
+//  normal_es.setRadiusSearch(0.5);
+//  normal_es.compute(*normals);
 
-  pcl::NormalEstimation<pcl::PointXYZI, pcl::Normal> normal_es;
-  normal_es.setInputCloud(cloud);
-  normal_es.setSearchMethod(search_tree);
-  normal_es.setRadiusSearch(0.5);
-  normal_es.compute(*normals);
-
-  pcl::VFHEstimation<pcl::PointXYZI,pcl::Normal,pcl::VFHSignature308> vfh;
-  //output datasets
-  pcl::PointCloud<pcl::VFHSignature308>::Ptr vfh_out (new pcl::PointCloud<pcl::VFHSignature308>());
-  vfh.setInputCloud(cloud);
-  vfh.setInputNormals(normals);
-  vfh.setNormalizeDistance(true);
-  vfh.setFillSizeComponent(true);
-  vfh.setSearchMethod(search_tree);
-  vfh.compute(*vfh_out);
-  for(int i=135;i<180;i++)
-  {
-    cerr<<vfh_out->points[0].histogram[i]<<"  ";
-  }
+//  pcl::VFHEstimation<pcl::PointXYZI,pcl::Normal,pcl::VFHSignature308> vfh;
+//  //output datasets
+//  pcl::PointCloud<pcl::VFHSignature308>::Ptr vfh_out (new pcl::PointCloud<pcl::VFHSignature308>());
+//  vfh.setInputCloud(cloud);
+//  vfh.setInputNormals(normals);
+//  vfh.setNormalizeDistance(true);
+//  vfh.setFillSizeComponent(true);
+//  vfh.setSearchMethod(search_tree);
+//  vfh.compute(*vfh_out);
+//  for(int i=135;i<180;i++)
+//  {
+//    cerr<<vfh_out->points[0].histogram[i]<<"  ";
+//  }
 }
   Map_creator()
   {
@@ -449,7 +463,7 @@ void vfh_test()
     nh.param<double>("map_creation/cluster_tolerance",cluster_tolerance,0.5);
     corner_aligned=nh.subscribe<sensor_msgs::PointCloud2>("cornerstack_aligned",10000,&Map_creator::corner_aligned_callback,this);
     surface_aligned=nh.subscribe<sensor_msgs::PointCloud2>("surfacestack_aligned",10000,&Map_creator::surface_aligned_callback,this);
-    vfh_test();
+    //vfh_test();
     if(if_transform_create)
     {
       cerr<<"creating transformation"<<endl;
@@ -462,3 +476,4 @@ void vfh_test()
     }
   }
 };
+#endif  /*MAP_CREATOR*/

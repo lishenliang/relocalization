@@ -1,3 +1,5 @@
+#ifndef KEYFRAME_PROCESS
+#define KEYFRAME_PROCESS
 #include<vector>
 #include<iostream>
 #include<fstream>
@@ -29,9 +31,9 @@
 typedef pcl::PointXYZI PointTypeIO;
 typedef pcl::PointXYZINormal PointTypeFull;
 using namespace std;
-
 bool customRegionGrowing (const PointTypeFull& point_a, const PointTypeFull& point_b, float squared_distance);
 void detectObjectsOnCloud(pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud_filtered);
+void compute_dis_feature(const pcl::PointCloud< pcl::PointXYZI >::Ptr cloud,vector<float> & dis_distribution,const pcl::IndicesPtr &indices);
 void detectObjectsOnCloud(pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud_filtered)
 {
     if (cloud->size() > 0)
@@ -128,10 +130,20 @@ void initial_find(pcl::PointCloud< pcl::PointXYZI >::Ptr local_map,
       vfh.setInputNormals(cloud_in_normals);
       vfh.setSearchMethod(cloud_in_search_tree);
       vfh.compute(*vfh_out);
+
+      //compute distance distrubution
+      vector<float> dist;
+      dist.resize(45);
+      compute_dis_feature(local_map,dist,indicesptr);
       for(size_t l=0;l<308;l++)
       {
           descriptor(k,l)=vfh_out->points[0].histogram[l];
           flanndata_descriptor[k][l]=vfh_out->points[0].histogram[l];
+      }
+      for (int l=0;l<45;l++)
+      {
+        descriptor(k,l+135)=dist[l];
+        flanndata_descriptor[k][l+135]=dist[l];
       }
   }
   DBoW3::QueryResults ret;
@@ -207,3 +219,21 @@ customRegionGrowing (const PointTypeFull& point_a, const PointTypeFull& point_b,
   }
 //  return (false);
 }
+void compute_dis_feature(const pcl::PointCloud< pcl::PointXYZI >::Ptr cloud,vector<float> & dis_distribution,const pcl::IndicesPtr &indices)
+{
+  vector<float> distance_to_origin;
+  for(int i=0;i<indices->size();i++)
+  {
+    float distance=sqrt(pow(cloud->points[indices->at(i)]._PointXYZI::x,2)+pow(cloud->points[indices->at(i)]._PointXYZI::y,2)+pow(cloud->points[indices->at(i)]._PointXYZI::z,2));
+    distance_to_origin.push_back(distance);
+  }
+  sort(distance_to_origin.begin(),distance_to_origin.end());
+  int num=floor(8.712*log2(distance_to_origin.size())-62.16);
+  num=min(num,45);
+  int step=floor(distance_to_origin.size()/num);
+  for(int i=0;i<num;i++)
+  {
+    dis_distribution[i]=distance_to_origin[step*i];
+  }
+}
+#endif  /*KEYFRAME_PROCESS*/
